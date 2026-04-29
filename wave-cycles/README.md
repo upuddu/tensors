@@ -8,6 +8,6 @@ You need to have Cocoa (macOS) to build this project natively.
 
 ```bash
 make
-./ui
+./SlitDiffraction
 ```
 *Note: To compile on Windows, you will need a cross-platform Objective-C runtime (like GNUstep) that provides the Cocoa API.*
