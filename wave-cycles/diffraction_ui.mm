@@ -1,5 +1,5 @@
-// Real-time Fraunhofer and Near-Field 2D Diffraction Simulator.
-// Single-window Cocoa UI in Objective-C++; no external libraries.
+// Real-time 2D Interference and Diffraction Simulator.
+// by Umberto Puddu & Risa Charvi Metta
 //
 // Build:  make
 // Run:    ./SlitDiffraction
@@ -25,7 +25,7 @@ static const double glowBlend = 0.2;
 static const int renderW = 480;
 static const int renderH = 240;
 
-// Slider Configurations (Min, Max, Initial)
+// Slider Configurations
 static const double lamMin = 380.0;
 static const double lamMax = 780.0;
 static const double lamInit = 500.0;
@@ -71,9 +71,18 @@ static void wavelengthToRGB(double lam_nm, double &r, double &g, double &b) {
   }
 
   // Clamp invalid colors
-  if (r < 0) r = 0; if (r > 1) r = 1;
-  if (g < 0) g = 0; if (g > 1) g = 1;
-  if (b < 0) b = 0; if (b > 1) b = 1;
+  if (r < 0)
+    r = 0;
+  if (r > 1)
+    r = 1;
+  if (g < 0)
+    g = 0;
+  if (g > 1)
+    g = 1;
+  if (b < 0)
+    b = 0;
+  if (b > 1)
+    b = 1;
 }
 
 static std::vector<double> simulateWaves(double lam_nm, double slit_w_um,
@@ -92,9 +101,12 @@ static std::vector<double> simulateWaves(double lam_nm, double slit_w_um,
   std::vector<double> sources;
   sources.reserve(n_slits * src_per_slit);
   for (int s = 0; s < n_slits; ++s) {
-    const double centre = (n_slits == 1) ? 0.0 : (s - 0.5 * (n_slits - 1)) * d; // Find center of this slit
+    const double centre = (n_slits == 1) ? 0.0
+                                         : (s - 0.5 * (n_slits - 1)) *
+                                               d; // Find center of this slit
     for (int i = 0; i < src_per_slit; ++i) {
-      const double t = (i + 0.5) / src_per_slit - 0.5; // Distribute points evenly across the slit width
+      const double t = (i + 0.5) / src_per_slit -
+                       0.5; // Distribute points evenly across the slit width
       sources.push_back(centre + w * t);
     }
   }
@@ -102,25 +114,28 @@ static std::vector<double> simulateWaves(double lam_nm, double slit_w_um,
   std::vector<double> field(nx * ny);
   double *field_ptr = field.data();
 
-  dispatch_apply(ny, dispatch_get_global_queue(QOS_CLASS_USER_INTERACTIVE, 0),
-                 ^(size_t py) {
-                   const double y = -Y_um * 0.5 + (py + 0.5) * (Y_um / ny);
-                   for (int px = 0; px < nx; ++px) {
-                     const double z = (px + 0.5) * (Z_um / nx);
-                     double E = 0.0;
-                     // For z very close to 0, limit 1/sqrt(r) to avoid singularity
-                     double min_r = lam / ptsPerWave;
-                     for (double ys : sources) {
-                       const double dy = y - ys;
-                       double r = std::sqrt(z * z + dy * dy); // Distance from point source to pixel
-                       if (r < min_r)
-                         r = min_r;
-                       const double phi = k * r - time_phase; // Instantaneous phase
-                       E += std::cos(phi) / std::sqrt(r); // Superposition of 2D cylindrical wave
-                     }
-                     field_ptr[py * nx + px] = E;
-                   }
-                 });
+  dispatch_apply(
+      ny, dispatch_get_global_queue(QOS_CLASS_USER_INTERACTIVE, 0),
+      ^(size_t py) {
+        const double y = -Y_um * 0.5 + (py + 0.5) * (Y_um / ny);
+        for (int px = 0; px < nx; ++px) {
+          const double z = (px + 0.5) * (Z_um / nx);
+          double E = 0.0;
+          // For z very close to 0, limit 1/sqrt(r) (to avoid NaN)
+          double min_r = lam / ptsPerWave;
+          for (double ys : sources) {
+            const double dy = y - ys;
+            double r = std::sqrt(
+                z * z + dy * dy); // Distance from point source to pixel
+            if (r < min_r)
+              r = min_r;
+            const double phi = k * r - time_phase; // Instantaneous phase
+            E += std::cos(phi) /
+                 std::sqrt(r); // Superposition of 2D cylindrical wave
+          }
+          field_ptr[py * nx + px] = E;
+        }
+      });
   return field;
 }
 
@@ -133,14 +148,13 @@ static NSImage *renderFrame(double lam_nm, double slit_w_um, double slit_sep_um,
   double cr, cg, cb;
   wavelengthToRGB(lam_nm, cr, cg, cb);
 
-  // Estimate maximum field amplitude to normalize brightness
+  // Estimate of maximum field amplitude
   double expected_max =
       (n_slits * std::max(1.0, slit_w_um / (lam_nm * 1e-3 / ptsPerWave))) /
       std::sqrt(domainZ * 0.1);
   if (expected_max <= 0)
     expected_max = 1.0;
-  
-  // Scale factor to make it look bright enough
+
   double scale = baseBrightness / expected_max;
 
   NSBitmapImageRep *rep =
@@ -166,12 +180,12 @@ static NSImage *renderFrame(double lam_nm, double slit_w_um, double slit_sep_um,
                      double E = field_ptr[py * width_px + px];
                      double val = E * scale;
 
-                     // Draw only positive wave crests
+                     // Draw only positive crests
                      double v = val > 0 ? val : 0.0;
                      if (v > 1.0)
                        v = 1.0;
 
-                     // Add time-averaged intensity glow to highlight stationary interference fringes
+                     // Glow to highlight fringes
                      double intensity = E * E * scale * scale * bgGlow;
                      if (intensity > 1.0)
                        intensity = 1.0;
@@ -352,8 +366,12 @@ static NSImage *renderFrame(double lam_nm, double slit_w_um, double slit_sep_um,
   [self.window makeKeyAndOrderFront:nil];
   [NSApp activateIgnoringOtherApps:YES];
   [self onSliderChanged:nil];
-  
-  [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(onClose:) name:NSWindowWillCloseNotification object:self.window];
+
+  [[NSNotificationCenter defaultCenter]
+      addObserver:self
+         selector:@selector(onClose:)
+             name:NSWindowWillCloseNotification
+           object:self.window];
 }
 
 - (void)onClose:(NSNotification *)note {
@@ -388,27 +406,29 @@ static NSImage *renderFrame(double lam_nm, double slit_w_um, double slit_sep_um,
   double d = self.dSlider.doubleValue;
   int n = (int)self.nSlider.intValue;
 
-  self.imageView.image = renderFrame(lam, w, d, n, renderW, renderH, self.time_phase);
+  self.imageView.image =
+      renderFrame(lam, w, d, n, renderW, renderH, self.time_phase);
   self.lamLabel.stringValue = [NSString stringWithFormat:@"%6.1f", lam];
   self.wLabel.stringValue = [NSString stringWithFormat:@"%6.2f", w];
   self.dLabel.stringValue = [NSString stringWithFormat:@"%6.2f", d];
   self.nLabel.stringValue = [NSString stringWithFormat:@"%6d", n];
-  self.speedLabel.stringValue = [NSString stringWithFormat:@"%6.2fx", self.speedSlider.doubleValue];
+  self.speedLabel.stringValue =
+      [NSString stringWithFormat:@"%6.2fx", self.speedSlider.doubleValue];
 
   if (n >= 2) {
-    self.statusLabel.stringValue =
-        [NSString stringWithFormat:@"Z = %.1f μm, Y = %.1f μm. %d-slit interference.",
-                                   domainZ, domainY, n];
+    self.statusLabel.stringValue = [NSString
+        stringWithFormat:@"Z = %.1f μm, Y = %.1f μm. %d-slit interference.",
+                         domainZ, domainY, n];
   } else {
-    self.statusLabel.stringValue =
-        [NSString stringWithFormat:@"Z = %.1f μm, Y = %.1f μm. 1-slit diffraction.",
-                                   domainZ, domainY];
+    self.statusLabel.stringValue = [NSString
+        stringWithFormat:@"Z = %.1f μm, Y = %.1f μm. 1-slit diffraction.",
+                         domainZ, domainY];
   }
 }
 
 @end
 
-int main(int /*argc*/, const char * /*argv*/[]) {
+int main(int, const char *[]) {
   @autoreleasepool {
     [NSApplication sharedApplication];
     AppDelegate *del = [[AppDelegate alloc] init];
